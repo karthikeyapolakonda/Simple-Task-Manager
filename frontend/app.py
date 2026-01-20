@@ -1,114 +1,97 @@
 import streamlit as st
-import requests
 
-API_URL = "https://your-backend-name.onrender.com"
+class Task:
+    def __init__(self, title, description, priority=1):
+        self.title = title
+        self.description = description
+        self.priority = priority
+
+    def __str__(self):
+        return f"[Priority {self.priority}] {self.title}: {self.description}"
+
+class TaskManager:
+    def __init__(self):
+        if "tasks" not in st.session_state:
+            st.session_state.tasks = []
+
+    @property
+    def tasks(self):
+        return st.session_state.tasks
+
+    def add_task(self, title, description, priority):
+        self.tasks.append(Task(title, description, priority))
+
+    def remove_task(self, title):
+        self.tasks[:] = [t for t in self.tasks if t.title.lower() != title.lower()]
+
+    def list_tasks(self):
+        return sorted(self.tasks, key=lambda t: t.priority)
+
+    def prioritize_task(self, title, new_priority):
+        for task in self.tasks:
+            if task.title.lower() == title.lower():
+                task.priority = new_priority
+
+    def recommend_tasks(self, keyword):
+        keyword_words = set(keyword.lower().split())
+        recommended = []
+
+        for task in self.tasks:
+            desc_words = set(task.description.lower().split())
+            similarity = len(keyword_words & desc_words) / max(len(keyword_words), 1)
+            if similarity >= 0.3:
+                recommended.append(task)
+
+        return recommended
+
+
+# ---------------- UI ----------------
 
 st.set_page_config(page_title="Task Manager", layout="centered")
-st.title("🧠 Task Manager (FastAPI + Streamlit)")
+st.title("🗂 Task Manager")
+
+manager = TaskManager()
 
 # ADD TASK
 st.header("➕ Add Task")
 title = st.text_input("Title")
 description = st.text_area("Description")
 priority = st.number_input("Priority", 1, 10, 1)
-due_date = st.date_input("Due Date")
 
 if st.button("Add Task"):
-    res = requests.post(
-        f"{API_URL}/tasks",
-        json={
-            "title": title,
-            "description": description,
-            "priority": priority,
-            "due_date": str(due_date)
-        }
-    )
-    st.success(res.json()["message"])
+    manager.add_task(title, description, priority)
+    st.success("Task added")
 
-
-# VIEW TASKS
-st.header("📋 All Tasks")
-if st.button("Refresh Tasks"):
-    tasks = requests.get(f"{API_URL}/tasks").json()
-    for t in tasks:
-        st.write(f"**{t['title']}** | Priority: {t['priority']} | Status: {t['status']}")
-        st.caption(t["description"])
-
+# LIST TASKS
+st.header("📋 Tasks")
+for task in manager.list_tasks():
+    st.write(task)
 
 # UPDATE PRIORITY
 st.header("⬆ Update Priority")
-up_title = st.text_input("Task Title (Priority)")
-new_priority = st.number_input("New Priority", 1, 10)
+p_title = st.text_input("Task title to update")
+new_priority = st.number_input("New priority", 1, 10)
 
 if st.button("Update Priority"):
-    res = requests.put(
-        f"{API_URL}/tasks/{up_title}",
-        params={"priority": new_priority}
-    )
-    st.info(res.json())
-
-
-# UPDATE STATUS
-st.header("🔄 Update Status")
-status_title = st.text_input("Task Title (Status)")
-status = st.selectbox("Status", ["pending", "in-progress", "completed"])
-
-if st.button("Update Status"):
-    res = requests.put(
-        f"{API_URL}/tasks/{status_title}/status",
-        params={"status": status}
-    )
-    st.success(res.json())
-
-
-# SEARCH
-st.header("🔍 Search Tasks")
-query = st.text_input("Search by title")
-filter_status = st.selectbox("Filter Status", ["", "pending", "in-progress", "completed"])
-
-if st.button("Search"):
-    res = requests.get(
-        f"{API_URL}/tasks/search",
-        params={"q": query, "status": filter_status or None}
-    ).json()
-    for t in res:
-        st.write(t)
-
+    manager.prioritize_task(p_title, new_priority)
+    st.success("Priority updated")
 
 # RECOMMEND
-st.header("✨ Recommended Tasks")
+st.header("✨ Recommendations")
 keyword = st.text_input("Keyword")
 
 if st.button("Recommend"):
-    res = requests.get(
-        f"{API_URL}/recommend",
-        params={"keyword": keyword}
-    ).json()
-    if res:
-        for t in res:
-            st.write(f"✅ {t['title']} - {t['description']}")
+    results = manager.recommend_tasks(keyword)
+    if results:
+        for task in results:
+            st.write(task)
     else:
         st.info("No recommendations found")
 
+# REMOVE
+st.header("🗑 Remove Task")
+r_title = st.text_input("Task title to remove")
 
-# DELETE
-st.header("🗑 Archive Task")
-del_title = st.text_input("Task Title (Delete)")
-
-if st.button("Archive"):
-    res = requests.delete(f"{API_URL}/tasks/{del_title}")
-    st.warning(res.json())
-
-
-# LOGS
-st.header("📜 Activity Logs")
-if st.button("View Logs"):
-    logs = requests.get(f"{API_URL}/logs").json()
-    for log in logs:
-        st.write("•", log)
-
-
-# EXPORT
-st.header("⬇ Export Tasks")
-csv_data = requests.get(f"{API_URL}/export").content
-st.download_button("Download CSV", csv_data, "tasks.csv")
+if st.button("Remove"):
+    manager.remove_task(r_title)
+    st.warning("Task removed")
