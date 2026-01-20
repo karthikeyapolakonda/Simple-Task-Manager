@@ -68,7 +68,7 @@ class TaskManager:
 # STREAMLIT UI
 
 st.set_page_config(page_title="Smart Task Manager", layout="centered")
-st.title("🧠 Smart Task Manager (Recruiter-Grade Python Project)")
+st.title("🧠 Smart Task Manager")
 
 manager = TaskManager()
 
@@ -172,3 +172,4 @@ if tasks:
         st.rerun()
 else:
     st.info("No tasks to delete")
+
